@@ -1,0 +1,51 @@
+from utils import floatX
+import numpy as np
+import cPickle as pk
+from vae import VAE
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+
+rng = np.random.RandomState(2016)
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('model', help='model file to load')
+    parser.add_argument('dset', default='mnist', help='dataset') ##mnist freyfaces
+    args = parser.parse_args()
+
+    with open(args.model, 'rb') as f:
+        model = pk.load(f)  ##a VAE obj, eg. w=model.enc_mlp.params[0].eval()
+        zdim = model.zdim
+    if args.dset == 'mnist':
+        S = (28, 28)
+    elif args.dset == 'freyfaces':
+        S = (28, 20)
+    M1 = 30
+    M2 = 50
+
+    manifold = np.zeros((S[0]*M1, S[1]*M2), dtype=floatX)  ##(540,540)
+
+    for z1 in xrange(M1):
+        for z2 in xrange(M2):
+            if zdim == 2:
+                # print z1, z2 ##in training there're multi-sets z, (mbatchL,dimZ)
+                z = np.zeros((1, 2))
+                # pass unit square through inverse Gaussian CDF
+                z[0, 0] = norm.ppf(z1*1.0/M1 + 1.0/(M1*2))
+                z[0, 1] = norm.ppf(z2*1.0/M2 + 1.0/(M2*2))
+            else:
+                z = norm.ppf( rng.rand(1, zdim) )
+            z = np.array(z, dtype=floatX)
+            # print z
+            x_hat = model.decode(z)
+            x_hat = x_hat.reshape(S)  ##making it 28*28
+            manifold[z1 * S[0]:(z1 + 1) * S[0],
+                     z2 * S[1]:(z2 + 1) * S[1]] = 1-x_hat  ##x_hat
+
+    plt.imshow(manifold, cmap='Greys_r')
+    plt.axis('off')
+    plt.show()
+
+if __name__ == '__main__':
+    main()
